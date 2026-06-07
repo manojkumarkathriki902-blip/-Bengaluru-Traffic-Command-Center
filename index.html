@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bengaluru Traffic Command Center</title>
+  <meta name="description" content="Real-time traffic monitoring and command center for Bengaluru, Karnataka" />
+
+  <!-- Leaflet.js for interactive maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js for analytics charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Google Fonts: Orbitron (display) + Rajdhani (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+
+  <!-- Main stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SCAN LINE OVERLAY — pure CSS cyberpunk effect
+════════════════════════════════════════════════ -->
+<div class="scanlines" aria-hidden="true"></div>
+<div class="corner-deco tl" aria-hidden="true"></div>
+<div class="corner-deco tr" aria-hidden="true"></div>
+<div class="corner-deco bl" aria-hidden="true"></div>
+<div class="corner-deco br" aria-hidden="true"></div>
+
+<!-- ═══════════════════════════════════════════════
+     TOP NAVIGATION BAR
+════════════════════════════════════════════════ -->
+<header class="topbar" role="banner">
+  <div class="topbar__brand">
+    <div class="brand-icon" aria-hidden="true">
+      <span class="brand-icon__ring"></span>
+      <span class="brand-icon__dot"></span>
+    </div>
+    <div class="brand-text">
+      <span class="brand-text__city">BENGALURU</span>
+      <span class="brand-text__title">TRAFFIC COMMAND CENTER</span>
+    </div>
+  </div>
+
+  <!-- Live clock panel -->
+  <div class="topbar__clock" role="timer" aria-live="polite">
+    <div class="clock-time" id="clockTime">--:--:--</div>
+    <div class="clock-date" id="clockDate">---</div>
+    <div class="clock-tz">IST • UTC+5:30</div>
+  </div>
+
+  <!-- System status indicators -->
+  <div class="topbar__status">
+    <span class="status-pill status-pill--live">● LIVE</span>
+    <span class="status-pill status-pill--ok" id="systemStatus">SYSTEM OK</span>
+    <span class="status-pill" id="updatePill">REFRESH: 15s</span>
+  </div>
+
+  <!-- Search box -->
+  <div class="topbar__search" role="search">
+    <input type="text" id="searchInput" placeholder="Search junction…" autocomplete="off" aria-label="Search junction" />
+    <div class="search-dropdown" id="searchDropdown" role="listbox" aria-label="Search results"></div>
+    <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════
+     NOTIFICATION TICKER
+════════════════════════════════════════════════ -->
+<div class="ticker-wrap" role="marquee" aria-label="Live alerts">
+  <div class="ticker-label">⚡ ALERTS</div>
+  <div class="ticker-track" id="tickerTrack">
+    <span class="ticker-item ticker-item--critical">● CRITICAL: Silk Board Junction — 3200 vehicles</span>
+    <span class="ticker-item ticker-item--warn">▲ WARNING: Marathahalli Bridge — heavy congestion</span>
+    <span class="ticker-item ticker-item--info">ℹ WEATHER: Light rain expected in South Bengaluru — 18:30 IST</span>
+    <span class="ticker-item ticker-item--ok">✔ CLEARED: Electronic City Flyover — traffic easing</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN LAYOUT WRAPPER
+════════════════════════════════════════════════ -->
+<main class="layout" role="main">
+
+  <!-- ─── LEFT SIDEBAR ─── -->
+  <aside class="sidebar sidebar--left" aria-label="Statistics and alerts">
+
+    <!-- KPI Cards -->
+    <section class="panel panel--kpi" aria-label="Key performance indicators">
+      <h2 class="panel__title"><span class="panel__title-accent">◈</span> JUNCTION STATUS</h2>
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-card--critical">
+          <div class="kpi-card__value" id="kpiCritical">0</div>
+          <div class="kpi-card__label">Critical</div>
+          <div class="kpi-card__bar"><div class="kpi-card__bar-fill" id="kpiCriticalBar"></div></div>
+        </div>
+        <div class="kpi-card kpi-card--medium">
+          <div class="kpi-card__value" id="kpiMedium">0</div>
+          <div class="kpi-card__label">Medium</div>
+          <div class="kpi-card__bar"><div class="kpi-card__bar-fill" id="kpiMediumBar"></div></div>
+        </div>
+        <div class="kpi-card kpi-card--clear">
+          <div class="kpi-card__value" id="kpiClear">0</div>
+          <div class="kpi-card__label">Clear</div>
+          <div class="kpi-card__bar"><div class="kpi-card__bar-fill" id="kpiClearBar"></div></div>
+        </div>
+        <div class="kpi-card kpi-card--officers">
+          <div class="kpi-card__value" id="kpiOfficers">0</div>
+          <div class="kpi-card__label">Officers</div>
+          <div class="kpi-card__bar"><div class="kpi-card__bar-fill" id="kpiOfficersBar"></div></div>
+        </div>
+        <div class="kpi-card kpi-card--vehicles">
+          <div class="kpi-card__value" id="kpiVehicles">0</div>
+          <div class="kpi-card__label">Vehicles</div>
+          <div class="kpi-card__bar"><div class="kpi-card__bar-fill" id="kpiVehiclesBar"></div></div>
+        </div>
+        <div class="kpi-card kpi-card--wait">
+          <div class="kpi-card__value" id="kpiWait">0<span>m</span></div>
+          <div class="kpi-card__label">Avg Wait</div>
+          <div class="kpi-card__bar"><div class="kpi-card__bar-fill" id="kpiWaitBar"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Prediction Panel -->
+    <section class="panel panel--ai" aria-label="AI traffic predictions">
+      <h2 class="panel__title"><span class="panel__title-accent">⬡</span> AI PREDICTIONS</h2>
+      <div class="ai-panel">
+        <div class="ai-confidence">
+          <div class="ai-confidence__label">PREDICTION CONFIDENCE</div>
+          <div class="ai-confidence__bar-wrap">
+            <div class="ai-confidence__bar" id="aiConfBar"></div>
+            <span class="ai-confidence__pct" id="aiConfPct">0%</span>
+          </div>
+        </div>
+        <div class="ai-row">
+          <span class="ai-row__label">🔴 NEXT HOTSPOT</span>
+          <span class="ai-row__value" id="aiHotspot">Analysing…</span>
+        </div>
+        <div class="ai-row">
+          <span class="ai-row__label">👮 DEPLOY OFFICERS</span>
+          <span class="ai-row__value" id="aiDeploy">—</span>
+        </div>
+        <div class="ai-row">
+          <span class="ai-row__label">📈 TREND</span>
+          <span class="ai-row__value" id="aiTrend">—</span>
+        </div>
+        <div class="ai-row">
+          <span class="ai-row__label">⏱ PEAK IN</span>
+          <span class="ai-row__value" id="aiPeak">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Weather Panel -->
+    <section class="panel panel--weather" aria-label="Weather information">
+      <h2 class="panel__title"><span class="panel__title-accent">◉</span> WEATHER — BENGALURU</h2>
+      <div class="weather-panel">
+        <div class="weather-main">
+          <div class="weather-icon" id="weatherIcon" aria-hidden="true">🌤</div>
+          <div class="weather-temp" id="weatherTemp">--°C</div>
+          <div class="weather-desc" id="weatherDesc">Loading…</div>
+        </div>
+        <div class="weather-grid">
+          <div class="weather-stat">
+            <div class="weather-stat__val" id="weatherHumidity">--%</div>
+            <div class="weather-stat__lbl">Humidity</div>
+          </div>
+          <div class="weather-stat">
+            <div class="weather-stat__val" id="weatherWind">-- km/h</div>
+            <div class="weather-stat__lbl">Wind</div>
+          </div>
+          <div class="weather-stat">
+            <div class="weather-stat__val" id="weatherRain">--%</div>
+            <div class="weather-stat__lbl">Rain Prob</div>
+          </div>
+          <div class="weather-stat">
+            <div class="weather-stat__val" id="weatherVis">-- km</div>
+            <div class="weather-stat__lbl">Visibility</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Officer Deployment Panel -->
+    <section class="panel panel--deploy" aria-label="Officer deployment">
+      <h2 class="panel__title"><span class="panel__title-accent">◈</span> DEPLOY OFFICERS</h2>
+      <div class="deploy-form">
+        <label class="deploy-form__label" for="deployJunction">Select Junction</label>
+        <select id="deployJunction" class="deploy-form__select" aria-label="Select junction for deployment"></select>
+
+        <label class="deploy-form__label" for="deployCount">Officers to Deploy</label>
+        <div class="deploy-form__stepper">
+          <button class="stepper-btn" id="stepperMinus" aria-label="Decrease">−</button>
+          <input type="number" id="deployCount" class="deploy-form__input" value="2" min="1" max="20" aria-label="Number of officers" />
+          <button class="stepper-btn" id="stepperPlus" aria-label="Increase">+</button>
+        </div>
+
+        <label class="deploy-form__label" for="deployLevel">Set Congestion Level</label>
+        <select id="deployLevel" class="deploy-form__select" aria-label="Set congestion level">
+          <option value="critical">🔴 Critical</option>
+          <option value="medium" selected>🟡 Medium</option>
+          <option value="clear">🟢 Clear</option>
+        </select>
+
+        <button class="deploy-btn" id="deployBtn">⚡ DEPLOY NOW</button>
+      </div>
+    </section>
+
+  </aside>
+
+  <!-- ─── MAP AREA ─── -->
+  <section class="map-area" aria-label="Bengaluru traffic map">
+    <div id="map" role="application" aria-label="Interactive Bengaluru traffic map"></div>
+
+    <!-- Map overlays -->
+    <div class="map-legend" aria-label="Map legend">
+      <div class="legend-item"><span class="legend-dot legend-dot--critical"></span>Critical</div>
+      <div class="legend-item"><span class="legend-dot legend-dot--medium"></span>Medium</div>
+      <div class="legend-item"><span class="legend-dot legend-dot--clear"></span>Clear</div>
+    </div>
+    <div class="map-counter" id="mapCounter" aria-live="polite">100 Junctions Loaded</div>
+  </section>
+
+  <!-- ─── RIGHT SIDEBAR ─── -->
+  <aside class="sidebar sidebar--right" aria-label="Analytics and alerts">
+
+    <!-- Congestion Trend Chart -->
+    <section class="panel panel--chart" aria-label="Congestion trend">
+      <h2 class="panel__title"><span class="panel__title-accent">◈</span> CONGESTION TREND</h2>
+      <div class="chart-wrap">
+        <canvas id="trendChart" aria-label="Congestion trend line chart"></canvas>
+      </div>
+    </section>
+
+    <!-- Traffic Volume Bar Chart -->
+    <section class="panel panel--chart" aria-label="Traffic volume">
+      <h2 class="panel__title"><span class="panel__title-accent">◈</span> TRAFFIC VOLUME</h2>
+      <div class="chart-wrap">
+        <canvas id="volumeChart" aria-label="Traffic volume bar chart"></canvas>
+      </div>
+    </section>
+
+    <!-- Zone Distribution Pie Chart -->
+    <section class="panel panel--chart-sm" aria-label="Zone distribution">
+      <h2 class="panel__title"><span class="panel__title-accent">◈</span> ZONE DISTRIBUTION</h2>
+      <div class="chart-wrap chart-wrap--sm">
+        <canvas id="zoneChart" aria-label="Zone distribution pie chart"></canvas>
+      </div>
+    </section>
+
+    <!-- Officer Deployment Radar/Bar Chart -->
+    <section class="panel panel--chart-sm" aria-label="Officer deployment chart">
+      <h2 class="panel__title"><span class="panel__title-accent">◈</span> OFFICER DEPLOYMENT</h2>
+      <div class="chart-wrap chart-wrap--sm">
+        <canvas id="officerChart" aria-label="Officer deployment bar chart"></canvas>
+      </div>
+    </section>
+
+    <!-- Live Alerts Panel -->
+    <section class="panel panel--alerts" aria-label="Live alerts" aria-live="polite">
+      <h2 class="panel__title"><span class="panel__title-accent">⚡</span> LIVE ALERTS</h2>
+      <div class="alerts-list" id="alertsList" role="log" aria-label="Traffic alerts log"></div>
+    </section>
+
+  </aside>
+
+</main>
+
+<!-- ═══════════════════════════════════════════════
+     TOAST NOTIFICATION (deployment confirmation)
+════════════════════════════════════════════════ -->
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- ═══════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════ -->
+<footer class="footer" role="contentinfo">
+  <span>BENGALURU TRAFFIC COMMAND CENTER</span>
+  <span>·</span>
+  <span>BENGALURU CITY POLICE — TRAFFIC DIVISION</span>
+  <span>·</span>
+  <span>DATA REFRESHES EVERY 15 SECONDS</span>
+  <span>·</span>
+  <span id="footerJunctionCount">100 JUNCTIONS MONITORED</span>
+</footer>
+
+<!-- Main JavaScript -->
+<script src="script.js"></script>
+</body>
+</html>
